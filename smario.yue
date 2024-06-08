@@ -25,7 +25,7 @@ maid64.setup(256, 256)
 love.mouse.getPosition = maid64.mouse.getPosition -- プログラム全体としてmaid64の座標系を使うことにする
 love.touch.getPosition0 = love.touch.getPosition -- 保存
 love.touch.getPosition = (id)-> maid64.transformPosition(love.touch.getPosition0(id))
-maid64.clearBG = -> gr.draw_zoom(gr.newFlyweightImage('assets/wallpaper.jpg')) -- 壁紙
+maid64.clearBG = -> gr.draw_zoom(gr.newFlyweightImage('assets/Metal_02-800x512.jpg'))--'assets/wallpaper.jpg')) -- 壁紙
 os.lang = nil -- i18nを無効
 love.audio.setVolume(.65)
 
@@ -35,7 +35,7 @@ softgamepad = SoftGamepad(SoftGamepad.LURDABButtons256)
 -- @diagnostic disable-next-line: duplicate-set-field
 love.draw = ->
 	love.draw1()
-	softgamepad.font, font = gr.newFlyweightFont('assets/fonts/mplus-2p-black-subset.otf', 28*maid64.scaler), softgamepad.font
+	softgamepad.font, font = gr.newFlyweightFont('assets/fonts/mplus/mplus-2p-black.subset.otf', 28*maid64.scaler), softgamepad.font
 	softgamepad.buttons, buttons = {k, {x*maid64.scaler+maid64.x, y*maid64.scaler+maid64.y, r*maid64.scaler,label,pie} for k, {x,y,r,label,pie} in pairs softgamepad.buttons}, softgamepad.buttons
 	softgamepad\draw()
 	softgamepad.font, softgamepad.buttons = font, buttons
@@ -246,7 +246,7 @@ class _Bullet extends _Charactor -- 蹴られた甲羅 ファイアボール
 		@x, @y, cols = @_move_no_warp()
 		for col in *cols
 			-- if issubclass(col.other.__class, _Player) and ((col.other.x < @x and col.move.x < 0) or (col.other.x > @x and col.move.x > 0)) then col.other\ダメージを受ける(@) -- 体から離れてゆくものからはダメージを受けないことにした→生成から0.1秒は無視することにした
-			if issubclass(col.other.__class, _Player) then col.other\ダメージを受ける(@, col) -- 体から離れてゆくものからはダメージを受けないことにした
+			if issubclass(col.other.__class, _Player) then col.other\ダメージを受ける(@) -- 体から離れてゆくものからはダメージを受けないことにした
 			elseif issubclass(col.other.__class, _Bullet) then _, _ = @弾に着弾(), lume.noop()--col.other\被弾(@)
 			elseif issubclass(col.other.__class, _Enemy) then _, _ = @着弾(), col.other\被弾(@)
 			elseif issubclass(col.other.__class, _Block)
@@ -277,7 +277,7 @@ class _Enemy extends _Charactor -- クリボー ノコノコ 甲羅
 		for col in *cols
 			if issubclass(col.other.__class, _Player)
 				if col.other.スター時間 > 0 then @被弾(col.other)
-				else @Playerにぶつかった(col.other, col) -- col.other\敵にぶつかった(@)
+				else @Playerにぶつかった(col.other) -- col.other\敵にぶつかった(@)
 			elseif issubclass(col.other.__class, _Bullet) then _, _ = @被弾(col.other), col.other\着弾(@)
 			elseif issubclass(col.other.__class, _Enemy) and col.normal.x in {-1, 1} then _, _ = @敵にぶつかった(), col.other\敵にぶつかった(@) -- 敵同士(横のみ) -- _GroundEnemyに付けるべき
 			elseif issubclass(col.other.__class, _Block)
@@ -295,7 +295,7 @@ class _Enemy extends _Charactor -- クリボー ノコノコ 甲羅
 		@消滅()
 
 	-- ワープ対策を抜けてくるものがあるので、実際にrectが重なっているか調べる(Playerと敵だけ)。
-	Playerにぶつかった: (player, col)=> if @intersect(player) then player\ダメージを受ける(@, col)
+	Playerにぶつかった: (player)=> if @intersect(player) then player\ダメージを受ける(@)
 
 class _GroundEnemy extends _Enemy
 	new: (x, y, w, h, sprites)=>
@@ -568,7 +568,7 @@ class 蹴られた甲羅 extends _Bullet
 	着弾: => -- 貫通する
 
 	壁にぶつかった: =>
-		print '甲羅が壁にぶつかった。', @time*60
+		-- print '甲羅が壁にぶつかった。', @time*60
 		@反対方向を向く()
 		play'assets/supermario/頭ぶつける.ogg'
 
@@ -800,7 +800,7 @@ class _Player extends _Charactor
 			if issubclass(col.other.__class, _Item) then col.other\Playerにぶつかった(@) -- 各アイテム側で行う
 			elseif issubclass(col.other.__class, _Enemy)
 				if @スター時間 > 0 then col.other\被弾(@)
-				else col.other\Playerにぶつかった(@, col) -- 敵側で行う
+				else col.other\Playerにぶつかった(@) -- 敵側で行う
 			elseif issubclass(col.other.__class, _Bullet) then lume.noop() -- @弾にぶつかった()
 			elseif issubclass(col.other.__class, _Block)
 				if col.normal.y < 0 then @dy = 0 -- 着地 
@@ -863,12 +863,10 @@ class チビマリオ extends _Player
 		@消滅()
 		Scene.current.update = coroutine.wrap(Scene.current._update_powerup) -- 時間停止
 
-	ダメージを受ける: (other, col)=> -- todo: refactoring 敵と弾両方になってる。
+	ダメージを受ける: (other)=> -- todo: refactoring 敵と弾両方になってる。
 		if @ダメージ無効時間 > 0 or @スター時間 > 0 or other.time < 5.5/60 then return -- 弾が作られてすぐは無視する
-		print other.time*60, col?.touch.y, @y, col?.move.y, other.y, @dy
-		-- assert(col)
-		-- print col.touch.x, col.touch.y, @x, @y, other.x, other.y
-		if issubclass(other.__class, 蹴られた甲羅) and (@y+@h < other.y+other.h or other.time < 6.5/60) -- 踏まれた baselineで比較
+		-- print other.time*60, col?.touch.y, @y, col?.move.y, other.y, @dy
+		if issubclass(other.__class, 蹴られた甲羅) and (@y+@h < other.y+other.h or other.time < 6.5/60) -- 踏まれた baselineで比較 無限1UPのため、1fだけ下で触れても死なないことにした。
 			other\踏んで止められた(@)
 			return
 		@死亡()
@@ -890,10 +888,10 @@ class スーパーマリオ extends _Player
 		@消滅()
 		Scene.current.update = coroutine.wrap(Scene.current._update_powerup) -- 時間停止
 
-	ダメージを受ける: (other, col)=>
+	ダメージを受ける: (other)=>
 		if @スター時間 > 0 or other.time < 5.5/60 then return -- 作られてすぐは無視する
 		-- print other.time, other.time*60
-		if issubclass(other.__class, 蹴られた甲羅) and @y+@h < other.y+other.h -- 踏まれた baselineで比較
+		if issubclass(other.__class, 蹴られた甲羅) and (@y+@h < other.y+other.h or other.time < 6.5/60) -- 踏まれた baselineで比較
 			other\踏んで止められた(@)
 			return
 		play'assets/supermario/土管.ogg'
@@ -1131,7 +1129,23 @@ love.load = ->
 	if DEBUGMODE -- hotswap
 		Watchdog{
 			"#{$FILE}": -> Watchdog.transpile("#{$FILE}", 'main.lua')
-			...Watchdog.InitialTargets}
+			'main.lua': -> lume.hotswap('main')
+			'ui.yue': -> @@.transpile('ui.yue')
+			'input.yue': -> @@.transpile('input.yue')
+			-- 'color.yue': -> @@.transpile('color.yue')
+			'utl.yue': -> @@.transpile('utl.yue')
+			'bigmap.yue': -> @@.transpile('bigmap.yue')
+			-- 'BDF.yue': -> @@.transpile('BDF.yue')
+			-- 'distribute.yue': -> @@.transpile('distribute.yue')
+			'main.lua': -> lume.hotswap('main')
+			'input.lua': -> lume.hotswap('input')
+			'ui.lua': -> lume.hotswap('ui')
+			-- 'color.lua': -> lume.hotswap('color')
+			'utl.lua': -> lume.hotswap('utl')
+			'bigmap.lua': -> lume.hotswap('bigmap')
+			-- 'BDF.lua': -> lume.hotswap('BDF')
+			-- 'distribute.lua': -> lume.hotswap('distribute')
+			}
 	if DEBUGMODE -- build
 		love.thread.newThread([[
 _G.PROJECTNAME, _G.VERSION = ...
