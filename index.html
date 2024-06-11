@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1">
-    <title>smario -v 0.1a(2024-06-08)</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>smario -v 0.1b(2024-06-11)</title>
 
     <!-- Load custom style sheet -->
-    <link rel="stylesheet" type="text/css" href="theme/love.css">
+	<link rel="stylesheet" type="text/css" href="https://rawgit.com/outboxcraft/beauter/master/beauter.min.css"/>
   </head>
   <body>
     <center>
       <div>
-        <h1>smario -v 0.1a(2024-06-08)</h1>
+<p id="header_smario"></p>
         <canvas id="loadingCanvas" oncontextmenu="event.preventDefault()" width="800" height="600"></canvas>
         <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
       </div>
@@ -104,8 +104,27 @@
     </script>
     <script type="text/javascript" src="game.js"></script>
     <script async type="text/javascript" src="love.js" onload="applicationLoad(this)"></script>
-    <footer>
-      <p>Built with <a href="https://github.com/Davidobot/love.js">love.js</a> <button onclick="goFullScreen();">Go Fullscreen</button><br>Hint: Reload the page if screen is blank</p>
-    </footer>
+
+      <p class=_alignCenter><button class="_small _ripple" onclick="goFullScreen();">Fullscreen</button></p>
+<style>body{color: #1a1a20; background-color: #fffbe1;}</style>
+<link rel=stylesheet href=https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic>
+<div class="row">
+<section id="todo-list" class="col" data-m12="">
+<h2>Todo List</h2>
+<ul>
+<li><label><input type="checkbox"
+checked="" />ぬるっと真上のブロックに乗る。</label></li>
+<li><label><input type="checkbox"
+checked="" />Bダッシュ中は隙間に落ちない</label></li>
+<li><label><input type="checkbox"
+checked="" />無限１UP→かんたんなものを付けたが、地上でできてしまうかも</label></li>
+<li><label><input type="checkbox" checked="" />bug
+FPS出ない時、ジャンプが低くなる</label></li>
+<li>仕様 コインがリフトに連れ去られる</li>
+<li>仕様 タイトルにデモは付けられなそう</li>
+</ul>
+</section>
+</div>
+
   </body>
-</html>
+</html>
