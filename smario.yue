@@ -1,5 +1,5 @@
 import 'macros' as {$}
-_G.PROJECTNAME, _G.VERSION = $FILE\sub(1,-5), "0.1b(#{$DATE})"
+_G.PROJECTNAME, _G.VERSION = $FILE\sub(1,-5), "0.1c(#{$DATE})"
 import 'utf8'
 import 'lib.lume'
 -- import 'utl'
@@ -118,12 +118,11 @@ class Sprite -- チップの配列(に見えるもの)
 		@[#@array[n]+1] = nil
 	@flips = {[1]: {-1,1,16,0}, [3]: {}, [-1]: {-1,-1,16,16}, [-3]: {1,-1,0,16}} -- 1: 左向き 3: 右向き、-1, -3 は上下反転とする ↼ ↽⇀⇁ -- これで表せるが、mozcでどうやって出す？
 
--- インスタンスとworldへ登録したものの２つを管理する。(y=257を消去フラグとする(ループ中の消去は出来ないので))
+-- インスタンスとworldへ登録したものの２つを管理する。(y=lume.maxintegerを消去フラグとする(ループ中の消去は出来ないので))
 class _Charactor
 	new: (@x, @y, @w, @h, @sprites)=> -- charactorはすべて画面上の座標
-		@direction, @dx, @dy, @time = 3, 0, 0, 0 -- direction:{left:1 up:2 right:3 down:4} spritesは縦長の場合２つ使うため velocity→dx,dyそれぞれ別に扱われるので
-		@speed = 0.5 -- 横方向。directionによって*-1.0されることがある。_Playerは等速運動ではないのでvyと同じように扱われる
-		@vy, @gravity = 0, 0.3 -- 0.35
+		@direction, @time = 3, 0 -- direction:{left:1 up:2 right:3 down:4} spritesは縦長の場合２つ使うため
+		@vx, @vy, @gravity = 0, 0, 0.3 -- 0.35 vxはdirectionによって*-1.0されることがある。
 		@bounce = 0 -- 着地時跳ねる
 		Scene.current.charactors[] = @
 		@tweens = {}
@@ -139,23 +138,23 @@ class _Charactor
 		@tweens = [t for t in *@tweens when not t\update(dt)] -- tween完了したら削除される -- HTML5版では必ず@tweens[1]を扱う前に#@tweens > 0とチェックしなければならない。なぜ？
 		@sprites\update?(dt)
 		unless @.__class in {PlatformBlock, Coin} -- optimize: HTML5版で60FPS出すため調べないものを作る(動かないものは能動的には調べず、動くものから受動的に調べられる。)
-			@walk(dt)
-			@checkCollision()
+			dx, dy = @walk(dt)
+			@checkCollision(dx, dy)
 
-	walk: (_dt)=>
+	walk: (_dt)=> 0, 0 -- vx, vy(速度)からdx, dy(移動量)を計算する
 
-	_move_no_warp: => -- Liftと壁などに挟まれた時、大きくワープする。その対策。
-		x, y, cols = Scene.current.world\move(@, @x+@dx, @y+@dy, @collisionfilter)
-		if math.abs(x-@x) > math.abs(@dx)+3 or math.abs(y-@y) > math.abs(@dy)+3 -- この時ワープしたとみなし、無効とする。(それでもすり抜けるものもある)
-			dy = if #Scene.current.world\queryRect(@x, @y+@h, 14, 1, (c)-> issubclass(c.__class, _Block) and c.__class != HiddenBlock) > 0 then 0 else @dy
-			x, y, cols, _, @speed, @vy, @dx, @dy  = @x + 1, @y + dy, {}, Scene.current.world\update(@, @x + 1, @y + dy), 1, 0, 0, 0 -- +1はdtが使えれば60*dtだが…これは適当でいいか
+	_move_no_warp: (dx, dy)=> -- Liftと壁などに挟まれた時、大きくワープする。その対策。
+		x, y, cols = Scene.current.world\move(@, @x+dx, @y+dy, @collisionfilter)
+		if math.abs(x-@x) > math.abs(dx)+3 or math.abs(y-@y) > math.abs(dy)+3 -- この時ワープしたとみなし、無効とする。(それでもすり抜けるものもある)
+			dy = if #Scene.current.world\queryRect(@x, @y+@h, 14, 1, (c)-> issubclass(c.__class, _Block) and c.__class != HiddenBlock) > 0 then 0 else dy
+			x, y, cols, _, @vx, @vy = @x + 1, @y + dy, {}, Scene.current.world\update(@, @x + 1, @y + dy), 1, 0 -- +1はdtが使えれば60*dtだが…これは適当でいいか
 		x, y, cols
 
-	checkCollision: =>
-		@x += @dx
-		@y += @dy
+	checkCollision: (dx, dy)=> -- bumpに移動量を渡すはずの所
+		@x += dx
+		@y += dy
 
-	消滅: => @y, _ = 257, Scene.current.world?\update(@, @x, 257)
+	消滅: => @y, _ = lume.maxinteger, Scene.current.world?\update(@, @x, lume.maxinteger)
 	反対方向を向く: => @direction = rawget({3, nil, 1}, @direction) -- 壁でもモンスター同士でも当たったら反対方向を向く
 	着地: (_other)=> @vy = @bounce -- 地面に触れてなければ常に落ちてる。地面に触れた時飛び上がる(跳ねないときは0クリアになる)
 
@@ -170,7 +169,7 @@ class _Tooltip extends _Charactor
 		super(x, y, w, h, sprites)
 		@sprites.z = math.huge
 		@tweens[] = with tween.new(duration, @, {y: @y+distance_y})
-			.onfinish = => @subject.y = 257
+			.onfinish = => @subject.y = lume.maxinteger
 
 class ScoreTooltip extends _Tooltip
 	@Sprites = {[100]: {0x1f1}, [200]: {0x1f2}, [400]: {0x1f3}, [800]: {0x1f4}, [1000]: {0x1f5}, [2000]: {0x1f6}, [4000]: {0x1f7}, [8000]: {0x1f8}, ['1UP']: {0x1ff} }
@@ -187,29 +186,27 @@ class FallingTooltip extends _Charactor -- 重力によって落ちる。死体
 	new: (charactor)=>
 		super(charactor.x, charactor.y, charactor.w, charactor.h, charactor.sprites)
 		@direction = -charactor.direction -- 上下反転表示
-		@dx, @vy = charactor.dx, -3
+		@vx, @vy = charactor.vx, -3
 
 	update: (dt)=>
 		@vy += @gravity *dt*60
-		@dy = @vy *dt*60
-		@x, @y = @x + @dx, @y + @dy
+		@x, @y = @x + @vx *dt*60, @y + @vy *dt*60
 
 class _Item extends _Charactor -- Coin スーパーキノコ スター
 	new: (x, y, w, h, sprites)=>
 		super(x, y, w, h, sprites)
 		@collisionfilter = (other)=>
-			if @y > 256 or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Bullet) or issubclass(other.__class, _Item) or other.__class == HiddenBlock then nil
+			if @y > Scene.current\limitY() or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Bullet) or issubclass(other.__class, _Item) or other.__class == HiddenBlock then nil
 			elseif issubclass(other.__class, _Player) then 'cross'
 			elseif issubclass(other.__class, Lift) and not (@vy >= 0 and @y+@h < other.y+0.9) then nil -- +0.9は微妙なepsilonこれがないとすり抜ける。
 			else 'slide' -- 他のBlock
 
 	walk: (dt)=>
-		@dx = rawget({-@speed, nil, @speed}, @direction) * 60*dt
 		@vy += @gravity * 60*dt
-		@dy = @vy * 60*dt
+		rawget({-@vx, nil, @vx, [-1]: -@vx, [-3]: @vx}, @direction) * 60*dt, @vy * 60*dt -- _Enemyでも使いバブルが下向きになるので負の値も必要
 
-	checkCollision: =>
-		@x, @y, cols = @_move_no_warp()
+	checkCollision: (dx, dy)=>
+		@x, @y, cols = @_move_no_warp(dx, dy)
 		for col in *cols
 			if issubclass(col.other.__class, _Player) then @Playerにぶつかった(col.other) --, col.other[@__class.__name .. 'を取る'](col.other, @)
 			-- elseif issubclass(col.other.__class, _Bullet) then _, _ = @弾に着弾(), col.other\被弾(@)
@@ -231,18 +228,14 @@ class _Bullet extends _Charactor -- 蹴られた甲羅 ファイアボール
 		@連 = 0
 		-- まだbumpに登録しない
 		@collisionfilter = (other)=>
-			if @y > 256 or issubclass(other.__class, _Item) or other.__class in {HiddenBlock, バブル, ファイアバー , クッパの炎} then nil -- ファイアバー、バブル、クッパの炎とはお互いに当たり判定を持たない。
+			if @y > Scene.current\limitY() or issubclass(other.__class, _Item) or other.__class in {HiddenBlock, バブル, ファイアバー , クッパの炎} then nil -- ファイアバー、バブル、クッパの炎とはお互いに当たり判定を持たない。
 			elseif issubclass(other.__class, _Enemy) or issubclass(other.__class, _Player) then 'cross'
 			elseif issubclass(other.__class, Lift) and not (@vy >= 0 and @y+@h < other.y+0.9) then nil -- +0.9は微妙なepsilonこれがないとすり抜ける。
 			else 'slide' -- 他のBlock
 	
-	walk: (dt)=>
-		@dx = rawget({-@speed, nil, @speed}, @direction) * 60*dt
-		@vy += @gravity * 60*dt
-		@dy = @vy * 60*dt
-
-	checkCollision: =>
-		@x, @y, cols = @_move_no_warp()
+	walk: _Item.__base.walk
+	checkCollision: (dx, dy)=>
+		@x, @y, cols = @_move_no_warp(dx, dy)
 		for col in *cols
 			-- if issubclass(col.other.__class, _Player) and ((col.other.x < @x and col.move.x < 0) or (col.other.x > @x and col.move.x > 0)) then col.other\ダメージを受ける(@) -- 体から離れてゆくものからはダメージを受けないことにした→生成から0.1秒は無視することにした
 			if issubclass(col.other.__class, _Player) then col.other\ダメージを受ける(@) -- 体から離れてゆくものからはダメージを受けないことにした
@@ -257,23 +250,21 @@ class _Bullet extends _Charactor -- 蹴られた甲羅 ファイアボール
 	壁にぶつかった: => @消滅()
 
 class _Enemy extends _Charactor -- クリボー ノコノコ 甲羅
+	@Speed = 0.5
 	new: (x, y, w, h, sprites)=>
 		super(x, y, w, h, sprites)
 		@direction = 1
+		@vx = @@Speed
 		-- @bounce = 0
 		@collisionfilter = (other)=>
-			if @y > 256 or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) then nil -- 壁も敵も無視
+			if @y > Scene.current\limitY() or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) then nil -- 壁も敵も無視
 			-- elseif @.__class in {バブル, ファイアバー, クッパの炎} and issubclass(other.__class, _Bullet) then nil
 			else 'cross'--[['slide']]
 		-- まだbumpに登録しない
 	
-	walk: (dt)=>
-		@dx = rawget({-@speed, nil, @speed, [-1]: -@speed, [-3]: @speed}, @direction) * 60*dt
-		@vy += @gravity * 60*dt
-		@dy = @vy * 60*dt
-
-	checkCollision: =>
-		@x, @y, cols = @_move_no_warp() -- ワープ対策は本当はGroundEnemyだけで良い。
+	walk: _Item.__base.walk
+	checkCollision: (dx, dy)=>
+		@x, @y, cols = @_move_no_warp(dx, dy) -- ワープ対策は本当はGroundEnemyだけで良い。
 		for col in *cols
 			if issubclass(col.other.__class, _Player)
 				if col.other.スター時間 > 0 then @被弾(col.other)
@@ -305,7 +296,7 @@ class _GroundEnemy extends _Enemy
 		-- @bounce = 0
 		@collisionfilter = (other)=>
 			if issubclass(other.__class, _GroundEnemy) then 'slide'
-			elseif @y > 256 or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or other.__class == HiddenBlock then nil
+			elseif @y > Scene.current\limitY() or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or other.__class == HiddenBlock then nil
 			elseif issubclass(other.__class, Lift) and not (@vy >= 0 and @y+16--[[@h]] < other.y+1.0) then nil -- +0.9は微妙なepsilonこれがないとすり抜ける。
 			elseif issubclass(other.__class, _Player) then 'cross'
 			else 'slide' -- 他のBlock
@@ -340,15 +331,14 @@ class BlickBlock extends _Block -- レンガ
 	_update破壊される: =>
 		for _i=1, 2 do _, _ = coroutine.yield() -- 頭突きを伝播させるために消滅を遅らせる。
 		with FallingTooltip(@)
-			.x, .y, .sprites, .direction, .dx, .vy = @x+12, @y+8-12, {0x11f}, 3, 1.3, -3.0 -- 大幅書き換えで４つの瓦礫にする。
+			.x, .y, .sprites, .direction, .vx, .vy = @x+12, @y+8-12, {0x11f}, 3, 1.3, -3.0 -- 大幅書き換えで４つの瓦礫にする。
 		with FallingTooltip(@)
-			.x, .y, .sprites, .direction, .dx, .vy = @x+12, @y-12, {0x11f}, -3, 1.3, -6.0
+			.x, .y, .sprites, .direction, .vx, .vy = @x+12, @y-12, {0x11f}, -3, 1.3, -6.0
 		with FallingTooltip(@)
-			.x, .y, .sprites, .direction, .dx, .vy = @x-4, @y+8-12, {0x11f}, 1, -1.3, -3.0
+			.x, .y, .sprites, .direction, .vx, .vy = @x-4, @y+8-12, {0x11f}, 1, -1.3, -3.0
 		with FallingTooltip(@)
-			.x, .y, .sprites, .direction, .dx, .vy = @x-4, @y-12, {0x11f}, -1, -1.3, -6.0
+			.x, .y, .sprites, .direction, .vx, .vy = @x-4, @y-12, {0x11f}, -1, -1.3, -6.0
 		@消滅()
-		-- @update = nil
 
 
 class ItemBlock extends _Block
@@ -397,14 +387,14 @@ class 砲台 extends _Block
 
 class Lift extends _Block
 	@W = 32 -- ステージごとに変える？
-	new: (x, y, speed)=> -- speed 上下方向も表す。
+	new: (x, y, vy)=>
 		super(x, y, @@W, 8, {0x113, z: 1})
-		@speed = speed
+		@vy = vy
 
 	update: (dt)=>
-		@y += @speed * 60*dt
-		if @y < -16 then @y += 256+16
-		if @y > 256 then @y -= 256-16
+		@y += @vy * 60*dt
+		if @y < 0 then @y += maid64.sizeY+16
+		if @y > maid64.sizeY+16 then @y -= maid64.sizeY-16
 		Scene.current.world\update(@, @x, @y, @@W, 8)
 		-- for item in *Scene.current.world\queryRect(@x, @y-1, @@W, 1, (c)-> issubclass(c.__class, _Player) or issubclass(c.__class, _Item) or issubclass(c.__class, _GroundEnemy) or issubclass(c.__class, _Bullet)) -- 上にPlayerなどが乗っていたら一緒に動かす [spec] コインが持っていかれる
 		for item in *Scene.current.world\queryRect(@x, @y-1, @@W, 1, (c)-> issubclass(c.__class, _GroundEnemy) or not issubclass(c.__class, _Enemy)) -- 上にPlayerなどが乗っていたら一緒に動かす [spec] コインが持っていかれる
@@ -416,14 +406,13 @@ class 雲ブロック extends _Block
 	@W = 48
 	new: (x, y)=>
 		super(x, y, @@W, 8, {0x11b, z: 3})
-		@speed = 0
 
 	update: (dt)=>
-		@x += @speed * 60*dt
+		@x += @vx * 60*dt
 		Scene.current.world\update(@, @x, @y, @@W, 8)
 		if #Scene.current.world\queryRect(@x, @y-1, @@W, 1, (c)-> issubclass(c.__class, _Player)) > 0 -- 上にPlayerが乗っていたら一緒に動かす
-			@speed = 0.5 -- 乗ったらスタート
-			Scene.current.player.x, Scene.current.player.y, _ = Scene.current.world\move(Scene.current.player, Scene.current.player.x + @speed * 60*dt, Scene.current.player.y, Scene.current.player.collisionfilter)
+			@vx = _Enemy.Speed -- 乗ったらスタート
+			Scene.current.player.x, Scene.current.player.y, _ = Scene.current.world\move(Scene.current.player, Scene.current.player.x + @vx * 60*dt, Scene.current.player.y, Scene.current.player.collisionfilter)
 
 	registerSprite: Lift.__base.registerSprite
 
@@ -433,14 +422,14 @@ class Coin extends _Item
 		@sprites.time = love.timer.getTime() -- 輝くアニメが揃うようにする
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
-	walk: => -- 動かない
+	walk: => 0, 0 -- 動かない
 	Playerにぶつかった: (_player)=> _, love.score, _ = addcoins(), love.score+200, @消滅()
 
 class スーパーキノコ extends _Item
 	@Sprites = {0x10c, ox: -1, z: -1}
 	new: (x, y)=>
 		super(x+1, y, 14, 16, @@Sprites)
-		@speed = 0.8
+		@vx = 0.8
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		play'assets/supermario/アイテム出現.ogg'
 		@sprites.oy, @update = 14, @updateせり上がる -- 実体はブロックの上にあるが、描画だけせり上がる
@@ -456,7 +445,7 @@ class ファイアフラワー extends スーパーキノコ -- 素朴に_Item�
 	@Sprites = {0x10e, ox: -1, z: -1}
 	new: (x, y)=>
 		super(x, y)
-		@speed = 0
+		@vx = 0
 
 class １ＵＰキノコ extends スーパーキノコ
 	@Sprites = {0x10d, ox: -1, z: -1}
@@ -474,7 +463,7 @@ class スター extends スーパーキノコ
 class ファイアボール extends _Bullet
 	new: (x, y, direction)=>
 		super(rawget({x-8+2, nil, x+16-2}, direction), y+16+2--[[+3]], 4, 4, {0x115, ox: -2})
-		@direction, @gravity, @speed, @bounce = direction, 0.2, _Player.SpeedB, -2.0
+		@direction, @gravity, @vx, @bounce = direction, 0.2, _Player.SpeedB, -2.0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		play'assets/supermario/ファイアボール.ogg'
 
@@ -495,7 +484,7 @@ class クリボー extends _GroundEnemy
 			n = @@Scores[player.連]
 			if n != '1UP' then love.score += n else love.lives, _ = love.lives+1, play'assets/supermario/1UP.ogg'
 			ScoreTooltip(@x, @y-10, n)
-			_Tooltip(@x, @y, 16, 16, {0x110, z: -1}, 1.0, 0) -- 残骸
+			_Tooltip(@x, @y, 16, 16, {0x110, z: -2}, 1.0, 0) -- 残骸
 			@消滅()
 		else super(player)
 
@@ -540,7 +529,7 @@ class 甲羅 extends _GroundEnemy
 		else -- メット
 			@@Sprites = {{0x160, ox: -1, oy: -1}, ['前兆']: {0x161, ox: -1, oy: -1} }
 		super(x, y, 14, 15, @@Sprites[1])
-		@speed = 0
+		@vx = 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		@被弾 = @Prev.__base.被弾
 
@@ -564,7 +553,7 @@ class 甲羅 extends _GroundEnemy
 class 蹴られた甲羅 extends _Bullet
 	new: (x, y, direction, @Prev)=>
 		super(x, y, 14, 15, if @Prev == ノコノコ then {0x150, ox: -1, oy: -1} else {0x160, ox: -1, oy: -1})
-		@speed, @direction, @連 = _Player.SpeedB, direction, 1
+		@vx, @direction, @連 = _Player.SpeedB, direction, 1
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		@被弾 = @Prev.__base.被弾
 	着弾: => -- 貫通する
@@ -582,12 +571,13 @@ class 蹴られた甲羅 extends _Bullet
 class ジュゲム extends _Enemy
 	new: (x, y)=>
 		super(x, y, 16, 16, {0x146, 0x156, oy: -16, z: 1})
-		@cx, @speed, @gravity = @x, 0, 0
+		@cx, @vx, @gravity = @x, 0, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
 	walk: (_dt)=>
 		@cx = lume.lerp(@cx, Scene.current.player.x + 64, 0.001)
 		@x = @cx + math.sin(@time) * 100
+		0, 0
 
 	update: (dt)=>
 		super(dt)
@@ -621,20 +611,20 @@ class トゲゾー extends _GroundEnemy
 class キラー extends _Enemy
 	new: (x, y, direction = 1)=>
 		super(x, y+1, 16, 14, {0x114, z: 1}) -- ブロックが14なので合わせる
-		@direction, @speed, @gravity = direction, 1.0, 0
+		@direction, @vx, @gravity = direction, @@Speed*2, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 	Playerにぶつかった: ジュゲム.__base.Playerにぶつかった
 	被弾: メット.__base.被弾
 
 class バブル extends _Enemy
 	new: (x, _y)=>
-		super(x, 256, 14, 14, Sprite({{0x116, ox: -1, oy: -1, z: 1}})) -- 一番上の段に配置しておくと下から出現
-		@speed, @gravity = 0, 0.05
+		super(x, maid64.sizeY+2, 14, 14, Sprite({{0x116, ox: -1, oy: -1, z: 1}})) -- 一番上の段に配置しておくと下から出現
+		@vx, @gravity = 0, 0.05
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		@setup()
-		@collisionfilter = (other)=> if @y > 256 or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
+		@collisionfilter = (other)=> if @y > maid64.sizeY+2 or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
 
-	setup: => @vy, @direction, _ , @time, @update = -4, 1, @warp(@x, 256), 0, coroutine.wrap(@_update待ち) -- [bug] [spec] sprite.oyがあるのでy=256は完全な画面外ではない。
+	setup: => @vy, @direction, _ , @time, @update = -4, 1, @warp(@x, maid64.sizeY+2), 0, coroutine.wrap(@_update待ち)
 
 	_update待ち: (dt)=>
 		while @time < 2.5
@@ -642,30 +632,31 @@ class バブル extends _Enemy
 			_, dt = coroutine.yield()
 		@update = nil
 
-	checkCollision: =>
-		super()
+	checkCollision: (dx, dy)=>
+		super(dx, dy)
 		if @vy > 0 then @direction = -1
-		if @y > 256 then @setup()
+		if @y > maid64.sizeY+2 then @setup()
 	被弾: =>
 	
 class ファイアバー extends _Enemy -- の炎１つ
-	new: (@cx, @cy, @r, speed)=>
+	new: (@cx, @cy, @r, @回転速度)=>
 		super(@cx-4+@r, @cy-4, 8, 8, Sprite({{0x115, z: 1}}))
-		@speed = speed
-		@direction, @gravity, @dx, @vy = 3, 0, 0, 0 -- directionはspritesの反転に使われるので反転しないように
+		@direction, @gravity  = 3, 0 -- directionはspritesの反転に使われるので反転しないように
 		Scene.current.world\add(@, @x, @y, @w, @h)
-		@collisionfilter = (other)=> if @y > 256 or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
+		@collisionfilter = (other)=> if @y > Scene.current\limitY() or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
 
-	walk: (_dt)=> @x, @y = @cx+@r*math.sin(@time*@speed)-4, @cy+@r*math.cos(@time*@speed)-4
+	walk: (_dt)=>
+		@x, @y = @cx+@r*math.sin(@time*@回転速度)-4, @cy+@r*math.cos(@time*@回転速度)-4
+		0, 0
 	被弾: =>
 
 class クッパの炎 extends _Enemy
 	new: (x, y)=>
 		play'assets/supermario/クッパの炎.ogg'
 		super(x, y, 24, 8, Sprite({{0x164, 0x165, ox: -4}, {0x166, 0x167}}))
-		@speed, @gravity = 1, 0
+		@vx, @gravity = @@Speed*2, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
-		@collisionfilter = (other)=> if @y > 256 or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
+		@collisionfilter = (other)=> if @y > Scene.current\limitY() or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
 	被弾: =>
 
 	registerSprite: (map)=>
@@ -676,7 +667,7 @@ class クッパの炎 extends _Enemy
 
 class プクプク extends _Enemy
 	new: (x, _y, direction = 1)=>
-		super(x, 256, 16, 16, Sprite({{0x11c, z: 1}, {0x11d}}))
+		super(x, maid64.sizeY, 16, 16, Sprite({{0x11c, z: 1}, {0x11d}}))
 		@direction, @gravity = direction, 0.03
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		@vy = -4
@@ -685,20 +676,20 @@ class プクプク extends _Enemy
 class ゲッソー extends _Enemy
 	new: (x, y)=>
 		super(x+1, y+8, 14, 16, Sprite({{0x14a, 0x15a, ox: -1, oy: -8, z: 1}, {0x14b, 0x15b}}))
-		@gravity, @sprites.freq, @speed = 0, 0.8, 0
+		@gravity, @sprites.freq, @vx = 0, 0.8, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
 	update: (dt)=>
 		super(dt)
 		if @time > @sprites.freq*2 then @time, @direction = @time-@sprites.freq*2, if Scene.current.player.x < @x then 1 else 3
-		if @time % (@sprites.freq*2) < @sprites.freq then @vy, @speed = -0.4, 1
-		else @vy, @speed = 0.4, 0
+		if @time % (@sprites.freq*2) < @sprites.freq then @vy, @vx = -0.4, 1
+		else @vy, @vx = 0.4, 0
 	Playerにぶつかった: ジュゲム.__base.Playerにぶつかった
 
 class パックンフラワー extends _Enemy
 	new: (x, y)=> -- 土管の左上に配置しておくと、土管の中(少し右下)に生成される。
 		super(x+8+2, y+16+10, 12, 22, Sprite({{0x148, 0x158, ox: -2, oy: -10, z: -1}, {0x149, 0x159}}))
-		@speed, @gravity = 0, 0
+		@vx, @gravity = 0, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		@tweens[] = with tween.new(2.0, @, {y: @y-32})
 			.onfinish = => @scale *= -1
@@ -711,7 +702,7 @@ class パックンフラワー extends _Enemy
 class ハンマーブロス extends _GroundEnemy
 	new: (x, y)=>
 		super(x+1, y+10, 14, 22, Sprite({{0x14c, 0x15c, ox: -2, oy: -8-2, z: 1}, {0x14c, 0x15d}}))
-		@cx, @speed, @time2, @schedule = @x, 0, 0, {false, false, false, true, true, true}
+		@cx, @vx, @time2, @schedule = @x, 0, 0, {false, false, false, true, true, true}
 		Scene.current.world\add(@, @x, @y, @w, @h)
 	
 	update: (dt)=>
@@ -733,17 +724,17 @@ class ハンマー extends _Enemy
 	_update投げられるまで: (dt)=>
 		while @time < 0.5
 			@time += dt
-			if @owner.y > 256 then @消滅()
+			if @owner.y > Scene.current\limitY() then @消滅()
 			@x, @direction = @owner.x+6, @owner.direction
 			_, dt = coroutine.yield()
-		@vy, @speed, @update = -4, 2.1, nil
+		@vy, @vx, @update = -4, @@Speed*4, nil
 	被弾: メット.__base.被弾
 
 class クッパ extends _GroundEnemy
 	new: (x, y)=>
 		super(x, y, 32, 32, Sprite({{0x180, 0x181, 0x190, 0x191}, {0x182, 0x183, 0x192, 0x193}}))
 		@hp = 5
-		@speed, @gravity, @bounce, @time2 = 0.333, 0.016, -1, 0
+		@vx, @gravity, @bounce, @time2 = 0.333, 0.016, -1, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
 	update: (dt)=>
@@ -751,7 +742,7 @@ class クッパ extends _GroundEnemy
 		@time2 += dt
 		@direction = if Scene.current.player.x < @x then 1 else 3
 		if @time > 3 then @time, _ = @time-3, クッパの炎(@x-40, @y+12)
-		if @time2 > 5 then @time2, @speed = @time2-5, @speed * -1
+		if @time2 > 5 then @time2, @vx = @time2-5, @vx * -1
 	
 	registerSprite: (map)=>
 		ox, oy = @sprites.ox or 0, @sprites.oy or 0
@@ -768,8 +759,7 @@ class クッパ extends _GroundEnemy
 class _Player extends _Charactor
 	@Speed, @SpeedB = 1.5, 3.0
 	new: (x, y, w, h, sprites)=>
-		super(x+1, y+16-h, w, h, sprites)
-		@speed = 0
+		super(x, y+16-h, w, h, sprites)
 		Scene.current.player = @
 		Scene.current.world\add(@, @x, @y, @w, @h) -- 細くしないと１マスの間を通れない
 		@collisionfilter = (other)=>
@@ -782,24 +772,23 @@ class _Player extends _Charactor
 	
 	walk: (dt)=>
 		if @direction := (if input.Left() and not input.Down() then 1 elseif input.Right() and not input.Down() then 3 else nil) -- 下を押している時(しゃがんでいる時)は左右に移動できない
-			old_speed = @speed
-			@speed += rawget({-0.07, nil, 0.07}, @direction) * (if input.B() then 1.5 else 1.0) *60*dt -- 加速
-			@speed = if input.B() then lume.clamp(@speed, -@@SpeedB, @@SpeedB) elseif old_speed < -@@Speed or @@Speed < old_speed then old_speed * 0.9 * 60*dt else lume.clamp(@speed, -@@Speed, @@Speed) -- 最高速度
+			old_vx = @vx
+			@vx += rawget({-0.07, nil, 0.07}, @direction) * (if input.B() then 1.5 else 1.0) *60*dt -- 加速
+			@vx = if input.B() then lume.clamp(@vx, -@@SpeedB, @@SpeedB) elseif old_vx < -@@Speed or @@Speed < old_vx then old_vx * 0.9 * 60*dt else lume.clamp(@vx, -@@Speed, @@Speed) -- 最高速度
 		else
-			@speed *= 0.9 -- 減衰して…↓
-			if math.abs(@speed) < 0.1 then @speed = 0 -- 止まる
-		@dx = @speed * 60*dt
-		if @dy > 0 and math.abs(@speed) > @@Speed and #Scene.current.world\queryRect(@x-2, @y+@h, @w+4, 1, (c)-> issubclass(c.__class, _Block) and c.__class == HiddenBlock --[[not issubclass(c.__class, HiddenBlock)]]) >= 2 then @dy = 0 -- BDash中は隙間に落ちない(Playerが隙間にいる時、足元両サイドにブロックがあるか調べている)
+			@vx *= 0.9 -- 減衰して…↓
+			if math.abs(@vx) < 0.1 then @vx = 0 -- 止まる
 		if input.Ap() and #Scene.current.world\queryRect(@x, @y+@h, @w, 1, (c)-> issubclass(c.__class, _Block) and c.__class != HiddenBlock) > 0
-			@vy  = if math.abs(@speed) > @@Speed then -7.4 else -6.8 -- ジャンプ力は４ブロック(Bダッシュは５ブロック？)
+			@vy  = if math.abs(@vx) > @@Speed then -7.4 else -6.8 -- ジャンプ力は４ブロック(Bダッシュは５ブロック？)
 			play if #@sprites == 1 then 'assets/supermario/ジャンプ.ogg' else 'assets/supermario/ジャンプ2.ogg'
 			@連 = 1
 		if input.Ar() then @vy = math.max(@vy, -2.0)
 		@vy += @gravity * 60*dt
-		@dy = @vy * 60*dt
+		if @vy > 0 and math.abs(@vx) > @@Speed and #Scene.current.world\queryRect(@x-2, @y+@h, @w+4, 1, (c)-> issubclass(c.__class, _Block) and c.__class != HiddenBlock) >= 2 then @vy = 0 -- BDash中は隙間に落ちない(Playerが隙間にいる時、足元両サイドにブロックがあるか調べている)
+		@vx * 60*dt, @vy * 60*dt
 
-	checkCollision: =>
-		@x, @y, cols = @_move_no_warp()
+	checkCollision: (dx, dy)=>
+		@x, @y, cols = @_move_no_warp(dx, dy)
 		for col in *cols
 			if issubclass(col.other.__class, _Item) then col.other\Playerにぶつかった(@) -- 各アイテム側で行う
 			elseif issubclass(col.other.__class, _Enemy)
@@ -813,17 +802,17 @@ class _Player extends _Charactor
 					elseif #Scene.current.world\queryRect(col.touch.x+3.9, col.touch.y-2, @w-3.9, 2, (c)-> issubclass(c.__class, _Block)) == 0 then @warp(col.other.x+16, @y) -- 〃
 					else @vy, _ = 0, col.other\Playerにぶつかった(@) -- ブロックに頭ぶつける
 		if @x < -Scene.current.scroll[1] then @warp(-Scene.current.scroll[1], @y) -- 画面左端からは移動できない
-		if @x > -Scene.current.scroll[1]+256-14 then @warp(-Scene.current.scroll[1]+256-14, @y) -- 一応画面右端も付けておく
+		if @x > -Scene.current.scroll[1]+maid64.sizeX-@w then @warp(-Scene.current.scroll[1]+maid64.sizeX-@w, @y) -- 一応画面右端も付けておく
 		if Scene.current.time <= 0 then @死亡() -- 時間切れ
 
 	update: (dt)=>
-		@walk(dt)
-		@checkCollision()
+		dx, dy = @walk(dt)
+		@checkCollision(dx, dy)
 		@スター時間 -= dt
-		if Scene.current.player.y > 256 and nil == rawget(Scene.current, 'update') -- @yでは消滅させたものでも反応してしまうため、常に最新のplayerで
+		if Scene.current.player.y > Scene.current.scroll[2]+maid64.sizeY and nil == rawget(Scene.current, 'update') -- 落下判定、@yでは消滅させたものでも反応してしまうため、常に最新のplayerで
 			if warpinfo := lume.first [it for it in *Scene.current.warppoints when it[2]==257] then warpinfo.action() -- warppointsに追記で落下時になにかできる
 			else @死亡()
-		@sprites\update?(@dx * 0.085)
+		@sprites\update?(dx * 0.085)
 
 	踏んで少し跳ねる: => @vy, _ = (if input.A() then -6 else -3.5), play'assets/supermario/stomp.ogg' -- -2.0なら無限1UPできる？
 		
@@ -841,9 +830,9 @@ class _Player extends _Charactor
 
 	registerSprite: (map)=>
 		@sprites = if input.Down() then @@Sprites['しゃがむ']
-		elseif @vy != 0 then @@Sprites['ジャンプ'] -- elseif #(Scene.current.world\queryRect(@x, @y+@h, 14, 1)) == 0 then @@Sprites['ジャンプ'] elseif @dy < 0 or @gravity*2.01 < @dy then @@Sprites['ジャンプ']
-		elseif @dx ==0 then @@Sprites['立ち姿勢']
-		elseif (input.Left() and @dx > 0) or (input.Right() and @dx < 0) then @@Sprites['ブレーキ']
+		elseif @vy != 0 then @@Sprites['ジャンプ'] -- elseif #(Scene.current.world\queryRect(@x, @y+@h, 14, 1)) == 0 then @@Sprites['ジャンプ'] elseif @vy < 0 or @gravity*2.01 < @vy then @@Sprites['ジャンプ']
+		elseif @vx ==0 then @@Sprites['立ち姿勢']
+		elseif (input.Left() and @vx > 0) or (input.Right() and @vx < 0) then @@Sprites['ブレーキ']
 		else @@Sprites
 		if ((@ダメージ無効時間 and @ダメージ無効時間 > 0) or @スター時間 > 0) and love.frame_count % 3 == 0 then return -- todo: スターの演出が無敵と現状同じ
 		super(map)
@@ -861,7 +850,7 @@ class チビマリオ extends _Player
 	powerUp: (_item)=>
 		play'assets/supermario/パワーアップ.ogg'
 		with スーパーマリオ(@x, @y)
-			.direction, .dx, .vy, .スター時間 = @direction, @dx, @vy, @スター時間
+			.direction, .vx, .vy, .スター時間 = @direction, @vx, @vy, @スター時間
 		love.score, _ = love.score+1000, ScoreTooltip(@x, @y-16, 1000)
 		@消滅()
 		Scene.current.update = coroutine.wrap(Scene.current._update_powerup) -- 時間停止
@@ -886,7 +875,7 @@ class スーパーマリオ extends _Player
 	powerUp: (_item)=>
 		play'assets/supermario/パワーアップ.ogg'
 		with ファイアマリオ(@x, @y+16) -- 生成される時yがhにより調節されるので
-			.direction, .dx, .vy, .スター時間 = @direction, @dx, @vy, @スター時間
+			.direction, .vx, .vy, .スター時間 = @direction, @vx, @vy, @スター時間
 		love.score, _ = love.score+1000, ScoreTooltip(@x, @y, 1000)
 		@消滅()
 		Scene.current.update = coroutine.wrap(Scene.current._update_powerup) -- 時間停止
@@ -899,7 +888,7 @@ class スーパーマリオ extends _Player
 			return
 		play'assets/supermario/土管.ogg'
 		with チビマリオ(@x, @y+16)
-			.direction, .dx, .vy, .ダメージ無効時間 = @direction, @dx, @vy, 3.0
+			.direction, .vx, .vy, .ダメージ無効時間 = @direction, @vx, @vy, 3.0
 		@消滅()
 
 class ファイアマリオ extends スーパーマリオ
@@ -921,7 +910,7 @@ class Field extends Scene
 		super()
 		@bg_spr = Map('assets/supermario/bg_spr_16x16.png', {16, 16})
 		@scroll = {0, 0}
-		@world = bump.newWorld(256)
+		@world = bump.newWorld(32)
 		@charactors, @schedule = {}, {}
 		-- @泡time = 0
 
@@ -978,8 +967,8 @@ class Field extends Scene
 		@.Player(unpack startpoints[math.max(1, lume.count(startpoints, (p)-> @old_player_x > p[1]))])
 		BGM(@bgm)
 
+	limitY: => -@scroll[2]+maid64.sizeY+128 -- 落下判定レベル。縦スクロールを考慮してゆるく(_Playerだけは厳しい(画面外すぐ))
 	update: (dt)=>
-		-- jprof.push('field')
 		@time -= dt * 2.5 -- 1カウント0.4秒だそうだ
 		@updateTheOtherObjects(dt)
 		for {x, y, key: key, action: action} in *Scene.current.warppoints -- ワープポイント
@@ -987,31 +976,24 @@ class Field extends Scene
 		if math.floor(@time) == 100 and love.BGM.filename != 'assets/supermario/警告音.ogg' then BGM({'assets/supermario/警告音.ogg', ...@bgm})
 		if @player.x >= @goal_x-8 then @update = coroutine.wrap(@_update_goal) -- ゴール
 		-- if @泡time > 5 then @泡time, _ = @泡time-5, _Tooltip(@player.x+4, @player.y-6, 16, 16, {0x16f}, 10.0, -256) -- 水中ステージで泡を出す
-		-- jprof.pop('field')
 
 	updateTheOtherObjects: (dt)=> -- 共通部分
 		for c in *@charactors do c\update(dt)
-		for c, r in pairs @world.rects do if r.x < -@scroll[1]-16-128 or 256 < r.y then c.y, _ = 257, @world\remove(c) -- 登録したかの情報がないので一緒にできない
-		@charactors = [c for c in *@charactors when -@scroll[1]-16-128 <= c.x and c.y < 257] -- 画面左外-128(または落下)でオブジェクトを消滅させる
-		while lume.first(@schedule)[1]+@scroll[1] < 256+96 do table.remove(@schedule, 1)[3]() -- 画面右外+96くらいでscheduleからブロックやモンスターを生み出す optimize: HTML5版で遅くならないように
+		for c, r in pairs @world.rects do if r.x < -@scroll[1]-16-128 or @limitY() < r.y then c.y, _ = lume.maxinteger, @world\remove(c) -- 登録したかの情報がないので一緒にできない
+		@charactors = [c for c in *@charactors when -@scroll[1]-16-128 <= c.x and c.y < @limitY() ] -- 画面左外-128(または落下)でオブジェクトを消滅させる
+		while lume.first(@schedule)[1]+@scroll[1] < maid64.sizeX+96 do table.remove(@schedule, 1)[3]() -- 画面右外+96くらいでscheduleからブロックやモンスターを生み出す optimize: HTML5版で遅くならないように
 
 	_update_player_died: (dt)=>
 		BGM()
 		play'assets/supermario/death.ogg'
-		for _i = 1, 20 -- 60
-			-- 	@updateTheOtherObjects(dt)
-			_, dt = coroutine.yield()
-		@player.dy = -7
+		for _i = 1, 20 do _, dt = coroutine.yield()
 		for _i = 1, 60*3
-			@player.y += @player.dy
-			@player.dy += 0.5
 			@updateTheOtherObjects(dt)
 			_, dt = coroutine.yield()
 		love.lives -= 1
 		love.hiscore = math.max(love.hiscore, love.score)
 		love.filesystem.write(PROJECTNAME..'.save', lume.serialize({hiscore: love.hiscore})) -- save hiscore
 		Scene.current = if love.lives == 0 then GameOver(@level) else Ready(@level, nil, @player.x)
-		-- jprof.write('prof.mpack')
 
 	_update_powerup: (_)=>
 		for _i=1, 60 do _, _ = coroutine.yield()
@@ -1066,9 +1048,10 @@ class Field extends Scene
 			_, _ = coroutine.yield()
 		while sound\isPlaying() do  _, _ = coroutine.yield()
 		Scene.current = Ready('1-1', @player.__class)
+		_Enemy.Speed *= 1.1 -- ２周目以降、敵が速くなる
 
 	draw: =>
-		if @player.x > -@scroll[1]+128 then @scroll[1] = math.max(-@player.x+128, 256-16*#@field[1]) -- 土管出のとき、通常のupdateを通らないのでここでスクロールは計算
+		if @player.x > -@scroll[1]+128 then @scroll[1] = math.max(-@player.x+128, maid64.sizeX-16*#@field[1]) -- 土管出のとき、通常のupdateを通らないのでここでスクロールは計算
 		gr.clear(@bgcolor)
 		@@letters\set("   MARIO         WORLD   TIME\n   %06d  %s%s%02d   %s     %03d"\format(love.score, string.char(2.5+lume.pingpong(love.timer.getTime())*2), utf8.char(0xb5), love.coins, @level, @time+1)\to2d((c)->if c==0x20 then 0 else c)) -- HUD TIMEは401から始まって1を切った時点で１機失う
 		@@letters\draw(0, 8)
