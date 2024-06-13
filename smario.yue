@@ -98,7 +98,7 @@ A   ｺｺｺｺｺｺｺ    d
 A   AAAAAAA    d
 A   AAAAAqA  VWX
 A            fgh
-FFFFFFFFFFFFFFFF]]
+FFFFFFFFFFFFFFFF]]-- [spec] 地下で死んだときscroll[1]が小さいのでスタート地点に行く
 LevelData.title = LevelData['1-1']
 
 
@@ -498,7 +498,7 @@ class ノコノコ extends _GroundEnemy -- スプライトは縦長だが当た�
 		if @time < 3/60 --[[0.1]] then return -- パタパタから変化した時すぐに甲羅にならないように
 		if player.y + player.h < @y+@h -- 踏まれた baselineで比較
 			player\踏んで少し跳ねる()
-			甲羅(@x, @y, @.__class)
+			甲羅(@x, @y, @)
 			love.score, _ = love.score+100, ScoreTooltip(@x, @y, 100)
 			@消滅()
 		else super(player)
@@ -512,7 +512,8 @@ class パタパタ extends ノコノコ
 	Playerにぶつかった: (player)=>
 		if player.y + player.h < @y+@h -- 踏まれた baselineで比較
 			player\踏んで少し跳ねる()
-			ノコノコ(@x, @y)
+			with ノコノコ(@x, @y)
+				.direction = @direction
 			love.score, _ = love.score+400, ScoreTooltip(@x, @y, 400)
 			@消滅()
 		else super(player)
@@ -523,27 +524,28 @@ class メット extends ノコノコ--_GroundEnemy
 	被弾: (bullet)=> if bullet.__class == ファイアボール then bullet\壁にぶつかった() else super(bullet)
 
 class 甲羅 extends _GroundEnemy
-	new: (x, y, @Prev)=>
-		if @Prev.__class == ノコノコ
+	new: (x, y, @prev)=>
+		if @prev.__class == ノコノコ
 			@@Sprites = {{0x150, ox: -1, oy: -1}, ['前兆']: {0x151, ox: -1, oy: -1} }
 		else -- メット
 			@@Sprites = {{0x160, ox: -1, oy: -1}, ['前兆']: {0x161, ox: -1, oy: -1} }
 		super(x, y, 14, 15, @@Sprites[1])
-		@vx = 0
+		@direction, @vx = @prev.direction, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
-		@被弾 = @Prev.__base.被弾
+		@被弾 = @prev.__class.__base.被弾
 
 	update: (dt)=> -- 時間でノコノコ(メット)に戻る
 		super(dt)
 		@sprites = if (3.0 < @time and @time < 3.2) or (3.4 < @time and @time < 3.6) or (3.8 < @time and @time < 4.0) then @@Sprites['前兆'] else @@Sprites[1]
 		if 4.2 < @time
-			@.Prev(@x, @y)
+			with @prev.__class(@x, @y)
+				.direction = @direction
 			@消滅()
 
 	Playerにぶつかった: (player)=> -- 蹴る
 		if @time < 3.5/60 then return -- 作られてすぐは無視する(dtには誤差があるのでn frames無視するなら.5を付ける)
 		play'assets/supermario/轢く.ogg'
-		蹴られた甲羅(@x, @y, (if Scene.current.player.x > @x then 1 else 3), @Prev)
+		蹴られた甲羅(@x, @y, (if Scene.current.player.x > @x then 1 else 3), @prev)
 		player.連 += 1
 		n = @@Scores[player.連]
 		if n != '1UP' then love.score += n else love.lives, _ = love.lives+1, play'assets/supermario/1UP.ogg'
@@ -551,11 +553,11 @@ class 甲羅 extends _GroundEnemy
 		@消滅()
 
 class 蹴られた甲羅 extends _Bullet
-	new: (x, y, direction, @Prev)=>
-		super(x, y, 14, 15, if @Prev == ノコノコ then {0x150, ox: -1, oy: -1} else {0x160, ox: -1, oy: -1})
+	new: (x, y, direction, @prev)=>
+		super(x, y, 14, 15, if @prev.__class == ノコノコ then {0x150, ox: -1, oy: -1} else {0x160, ox: -1, oy: -1})
 		@vx, @direction, @連 = _Player.SpeedB, direction, 1
 		Scene.current.world\add(@, @x, @y, @w, @h)
-		@被弾 = @Prev.__base.被弾
+		@被弾 = @prev.__class.__base.被弾
 	着弾: => -- 貫通する
 
 	壁にぶつかった: =>
@@ -565,23 +567,24 @@ class 蹴られた甲羅 extends _Bullet
 
 	踏んで止められた: (player)=>
 		player\踏んで少し跳ねる()
-		甲羅(@x, @y, @Prev)
+		甲羅(@x, @y, @prev)
 		@消滅()
 
 class ジュゲム extends _Enemy
 	new: (x, y)=>
 		super(x, y, 16, 16, {0x146, 0x156, oy: -16, z: 1})
-		@cx, @vx, @gravity = @x, 0, 0
+		@cx, @vx, @gravity, @time2 = @x, 0, 0, 0
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
 	walk: (_dt)=>
-		@cx = lume.lerp(@cx, Scene.current.player.x + 64, 0.001)
+		@cx = lume.lerp(@cx, Scene.current.player.x + 64, 0.002)
 		@x = @cx + math.sin(@time) * 100
 		0, 0
 
 	update: (dt)=>
 		super(dt)
-		if @time > 6 then @time, _ = @time-6, 落下中トゲゾー(@x, @y-16)
+		@time2 += dt
+		if @time2 > 6 then @time2, _ = @time2-6, 落下中トゲゾー(@x, @y-20)
 	
 	Playerにぶつかった: (player)=> -- 踏んで倒す
 		if player.y + player.h < @y+@h -- 踏まれた baselineで比較
@@ -598,7 +601,7 @@ class 落下中トゲゾー extends _GroundEnemy
 	new: (x, y)=>
 		super(x, y, 14, 16, {0x118, ox: -1})
 		Scene.current.world\add(@, @x, @y, @w, @h)
-		@vy = -3
+		@vy = -4
 
 	着地: (_other)=> トゲゾー(@x, @y, if Scene.current.player.x < @x then 1 else 3) |> @消滅() -- playerの方に向かう？
 
@@ -617,6 +620,7 @@ class キラー extends _Enemy
 	被弾: メット.__base.被弾
 
 class バブル extends _Enemy
+	@Wait = 2.5
 	new: (x, _y)=>
 		super(x, maid64.sizeY+2, 14, 14, Sprite({{0x116, ox: -1, oy: -1, z: 1}})) -- 一番上の段に配置しておくと下から出現
 		@vx, @gravity = 0, 0.05
@@ -627,7 +631,7 @@ class バブル extends _Enemy
 	setup: => @vy, @direction, _ , @time, @update = -4, 1, @warp(@x, maid64.sizeY+2), 0, coroutine.wrap(@_update待ち)
 
 	_update待ち: (dt)=>
-		while @time < 2.5
+		while @time < @@Wait
 			@time += dt
 			_, dt = coroutine.yield()
 		@update = nil
@@ -992,8 +996,8 @@ class Field extends Scene
 			_, dt = coroutine.yield()
 		love.lives -= 1
 		love.hiscore = math.max(love.hiscore, love.score)
-		love.filesystem.write(PROJECTNAME..'.save', lume.serialize({hiscore: love.hiscore})) -- save hiscore
-		Scene.current = if love.lives == 0 then GameOver(@level) else Ready(@level, nil, @player.x)
+		love.filesystem.write(PROJECTNAME..'.save', lume.serialize({hiscore: love.hiscore, enemy_speed: math.max(love.enemy_speed, _Enemy.Speed)})) -- save hiscore
+		Scene.current = if love.lives == 0 then GameOver(@level) else Ready(@level, nil, -@scroll[1]+128)--@player.x)
 
 	_update_powerup: (_)=>
 		for _i=1, 60 do _, _ = coroutine.yield()
@@ -1091,7 +1095,7 @@ class Title extends SelectBox
 	new: =>
 		super(SelectBox.buildButtons({'1', '2'}, {{8*6, 8*15+8, 120, 16}, {8*6, 8*17+8, 120, 16}}, {
 			(-> love.score, love.lives, love.coins, Scene.current, _ = 0, 3, 0, Ready('1-1'), play'assets/supermario/コイン.ogg'),
-			(-> love.score, love.lives, love.coins, Scene.current, _ = 0, 3, 0, Ready('1-1', ファイアマリオ), play'assets/supermario/コイン.ogg') }))
+			(-> love.score, love.lives, love.coins, Scene.current, _, _Enemy.Speed = 0, 3, 0, Ready('1-1', ファイアマリオ), play'assets/supermario/コイン.ogg', love.enemy_speed) }))
 		{bgcolor: @bgcolor, field: field }  = LevelData['title']
 		@bg_spr = with Map('assets/supermario/bg_spr_16x16.png', {16, 16})
 			\set(lume.concat(field, {field[13], field[13], field[13]})) -- 地面を一行で表すようにしたため最後の行を繰り返しておく
@@ -1111,7 +1115,7 @@ class Title extends SelectBox
 love.load = ->
 	vudu?.initialize()
 	vudu?.initializeDefaultHotkeys()
-	{hiscore: love.hiscore = 0} = if love.filesystem.getInfo(PROJECTNAME..'.save') then lume.deserialize(love.filesystem.read(PROJECTNAME..'.save') or '{}') else {} -- load
+	{hiscore: love.hiscore = 0, enemy_speed: love.enemy_speed = _Enemy.Speed} = if love.filesystem.getInfo(PROJECTNAME..'.save') then lume.deserialize(love.filesystem.read(PROJECTNAME..'.save') or '{}') else {} -- load
 	Title()\attach()
 
 	if DEBUGMODE -- hotswap
@@ -1152,5 +1156,6 @@ require('distribute').modify_index_html(require('lib.os_capture').capture('echo 
 - [x] bug FPS出ない時、ジャンプが低くなる
 - 仕様 コインがリフトに連れ去られる
 - 仕様 タイトルにデモは付けられなそう
+- 仕様 地下でデスするとscrollの値が小さいのでスタート地点に戻る
 
 </div></div>"
