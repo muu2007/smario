@@ -2,15 +2,11 @@ import 'macros' as {$}
 _G.PROJECTNAME, _G.VERSION = $FILE\sub(1,-5), "0.1c(#{$DATE})"
 import 'utf8'
 import 'lib.lume'
--- import 'utl'
 import 'utl' as :issubclass, :play
 import 'lib.maid64' -- 改造して高解像度を初期値にした
--- import 'color' as :sweetie16
--- luacheck: ignore gifcat
--- import 'lib.gifcat' -- 全部に?入れているので、ここ消すだけで使わなくなる
+-- require 'lib.gifcat' -- 全部に?入れているので、ここ消すだけで使わなくなる
 import 'ui' as :Scene, :SelectBox, :BGM, :Watchdog
 import 'input' as :input, :SoftGamepad
--- import 'BDF'
 import 'lib.tween' -- 改造してdelayを可能にした
 import 'bigmap' as :Map
 import 'lib.bump'
@@ -25,17 +21,16 @@ maid64.setup(256, 256)
 love.mouse.getPosition = maid64.mouse.getPosition -- プログラム全体としてmaid64の座標系を使うことにする
 love.touch.getPosition0 = love.touch.getPosition -- 保存
 love.touch.getPosition = (id)-> maid64.transformPosition(love.touch.getPosition0(id))
-maid64.clearBG = -> gr.clear(gr.uipalette.text)--gr.draw_zoom(gr.newFlyweightImage('assets/wallpaper.jpg')) -- 壁紙
+maid64.clearBG = -> gr.clear(gr.uipalette.text)
 os.lang = nil -- i18nを無効
 love.audio.setVolume(.65)
 
 -- maid64.canvasの外(screen)に描く→描画時に位置などを調整
-softgamepad = SoftGamepad(SoftGamepad.LURDABButtons256)
-
+const softgamepad = SoftGamepad(SoftGamepad.LURDABButtons256)
 -- @diagnostic disable-next-line: duplicate-set-field
 love.draw = ->
 	love.draw1()
-	softgamepad.font, font = gr.newFlyweightFont('assets/fonts/mplus/mplus-2p-black.subset.otf', 28*maid64.scaler), softgamepad.font
+	softgamepad.font, font = gr.newFlyweightFont($FONT1SUBSET, 28*maid64.scaler), softgamepad.font
 	softgamepad.buttons, buttons = {k, {x*maid64.scaler+maid64.x, y*maid64.scaler+maid64.y, r*maid64.scaler,label,pie} for k, {x,y,r,label,pie} in pairs softgamepad.buttons}, softgamepad.buttons
 	softgamepad\draw()
 	softgamepad.font, softgamepad.buttons = font, buttons
@@ -98,7 +93,7 @@ A   ｺｺｺｺｺｺｺ    d
 A   AAAAAAA    d
 A   AAAAAqA  VWX
 A            fgh
-FFFFFFFFFFFFFFFF]]-- [spec] 地下で死んだときscroll[1]が小さいのでスタート地点に行く
+FFFFFFFFFFFFFFFF]]-- [spec] 地下で死んだときscroll[1]が小さいので中間まで行ってないことになりスタート地点に行く
 LevelData.title = LevelData['1-1']
 
 
@@ -375,13 +370,15 @@ class PlatformBlock extends _Block
 	new: (x, y, sprites)=> super(x, y, 16, 14, sprites)
 
 class 砲台 extends _Block
-	@Freq = 5.0
-	new: (x, y)=> super(x, y, 16, 14, {0x4f, z: 2})
+	-- @Freq = 5.0
+	new: (x, y)=>
+		super(x, y, 16, 14, {0x4f, z: 2})
+		@freq = 2.5 / _Enemy.Speed
 
 	update: (dt)=>
 		super(dt)
-		if @time > @@Freq then
-			@time -= @@Freq
+		if @time > @freq then
+			@time -= @freq
 			play'assets/supermario/キラー発射.ogg'
 			if @x > Scene.current.player.x then キラー(@x-3, @y, 1) else キラー(@x+3, @y, 3)
 
@@ -573,7 +570,7 @@ class 蹴られた甲羅 extends _Bullet
 class ジュゲム extends _Enemy
 	new: (x, y)=>
 		super(x, y, 16, 16, {0x146, 0x156, oy: -16, z: 1})
-		@cx, @vx, @gravity, @time2 = @x, 0, 0, 0
+		@cx, @vx, @gravity, @time2, @freq = @x, 0, 0, 0, 2.6/_Enemy.Speed
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
 	walk: (_dt)=>
@@ -584,7 +581,7 @@ class ジュゲム extends _Enemy
 	update: (dt)=>
 		super(dt)
 		@time2 += dt
-		if @time2 > 6 then @time2, _ = @time2-6, 落下中トゲゾー(@x, @y-20)
+		if @time2 > @freq then @time2, _ = @time2-@freq, @@.投げられたトゲゾー(@x, @y-20)
 	
 	Playerにぶつかった: (player)=> -- 踏んで倒す
 		if player.y + player.h < @y+@h -- 踏まれた baselineで比較
@@ -597,7 +594,7 @@ class ジュゲム extends _Enemy
 			@消滅()
 		else super(player)
 
-class 落下中トゲゾー extends _GroundEnemy
+class ジュゲム.投げられたトゲゾー extends _GroundEnemy
 	new: (x, y)=>
 		super(x, y, 14, 16, {0x118, ox: -1})
 		Scene.current.world\add(@, @x, @y, @w, @h)
@@ -620,10 +617,10 @@ class キラー extends _Enemy
 	被弾: メット.__base.被弾
 
 class バブル extends _Enemy
-	@Wait = 2.5
+	-- @Wait = 2.5
 	new: (x, _y)=>
 		super(x, maid64.sizeY+2, 14, 14, Sprite({{0x116, ox: -1, oy: -1, z: 1}})) -- 一番上の段に配置しておくと下から出現
-		@vx, @gravity = 0, 0.05
+		@vx, @gravity, @wait = 0, 0.05, 1.5/_Enemy.Speed
 		Scene.current.world\add(@, @x, @y, @w, @h)
 		@setup()
 		@collisionfilter = (other)=> if @y > maid64.sizeY+2 or issubclass(other.__class, _Block) or issubclass(other.__class, _Enemy) or issubclass(other.__class, _Item) or issubclass(other.__class, _Bullet) then nil else 'cross'
@@ -631,7 +628,7 @@ class バブル extends _Enemy
 	setup: => @vy, @direction, _ , @time, @update = -4, 1, @warp(@x, maid64.sizeY+2), 0, coroutine.wrap(@_update待ち)
 
 	_update待ち: (dt)=>
-		while @time < @@Wait
+		while @time < @wait
 			@time += dt
 			_, dt = coroutine.yield()
 		@update = nil
@@ -686,7 +683,7 @@ class ゲッソー extends _Enemy
 	update: (dt)=>
 		super(dt)
 		if @time > @sprites.freq*2 then @time, @direction = @time-@sprites.freq*2, if Scene.current.player.x < @x then 1 else 3
-		if @time % (@sprites.freq*2) < @sprites.freq then @vy, @vx = -0.4, 1
+		if @time % (@sprites.freq*2) < @sprites.freq then @vy, @vx = -0.4, _Enemy.Speed*2
 		else @vy, @vx = 0.4, 0
 	Playerにぶつかった: ジュゲム.__base.Playerにぶつかった
 
@@ -715,11 +712,11 @@ class ハンマーブロス extends _GroundEnemy
 		@time2 += dt
 		if @time2 > 1.1
 			@time2, _ = @time2-1.1, table.insert(@schedule, table.remove(@schedule, 1)) -- 配列をrotateする
-			if @schedule[#@schedule] then ハンマー(@x+6, @y-15, @)
+			if @schedule[#@schedule] then @@.ハンマー(@x+6, @y-15, @)
 		@direction = if Scene.current.player.x < @x then 1 else 3
 	Playerにぶつかった: ジュゲム.__base.Playerにぶつかった
 
-class ハンマー extends _Enemy
+class ハンマーブロス.ハンマー extends _Enemy
 	new: (x, y, @owner)=>
 		super(x, y, 8, 8, Sprite({{0x11e, ox: -4, oy: -4, z: 1, freq: 0.15}, {0x1ed}, {0x1ee}, {0x1ef} }))
 		Scene.current.world\add(@, @x, @y, @w, @h)
@@ -942,7 +939,7 @@ class Field extends Scene
 						when $C(ﾉ) then -> ノコノコ(ix, iy)
 						when $C(ﾇ) then -> パタパタ(ix, iy)
 						when $C(ｷ) then -> キラー(ix, iy)
-						when $C(ﾄ) then -> トゲゾー(ix, iy)
+						-- when $C(ﾄ) then -> トゲゾー(ix, iy)
 						when $C(ﾌ) then -> プクプク(ix, iy)
 						when $C(ﾊ) then -> パックンフラワー(ix, iy)
 						when $C(ｼ) then -> ジュゲム(ix, iy)
@@ -1147,6 +1144,9 @@ require('distribute').modify_index_html(require('lib.os_capture').capture('echo 
 <style>body{color: #1a1a20; background-color: #fffbe1;}</style>
 <link rel=stylesheet href='https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic'>
 <div class=row><div class='col m12'>
+
+- ２周目から少しずつ速くなる。
+- タイトルの２番目を選ぶと、それまでの一番早い状態で始められる。
 
 ## Todo List
 
