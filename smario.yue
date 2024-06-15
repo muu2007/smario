@@ -415,7 +415,7 @@ class 雲ブロック extends _Block
 
 class Coin extends _Item
 	new: (x, y)=>
-		super(x+2, y+2, 12, 12, Sprite({{0x10a, ox: -2, oy: -2, }, {0x1e2}, {0x1e3}, {0x1e2}}) )
+		super(x+2, y+2, 12, 12, Sprite({{0x10a, ox: -2, oy: -2, freq: 0.17}, {0x10a}, {0x10a}, {0x10a}, {0x1e2}, {0x1e3}, {0x1e2}}) )
 		@sprites.time = love.timer.getTime() -- 輝くアニメが揃うようにする
 		Scene.current.world\add(@, @x, @y, @w, @h)
 
@@ -928,8 +928,8 @@ class Field extends Scene
 						when $C(r) then -> ItemBlock(ix, iy, {0x41+@sprites_offset}, １ＵＰキノコ)
 						-- when $C(s) then -> ItemBlock(ix, iy, {0x41+@sprites_offset}, '蔦')
 						when $C(t) then -> ItemBlock(ix, iy, {0x41+@sprites_offset}, スター)
-						when $C(u) then -> ItemBlock(ix, iy, Sprite({{0x43}, {0x1e0}, {0x1e1}, {0x1e0}}), (x, y)-> _, love.score, _ = addcoins(), love.score+200, CoinTooltip(x, y))
-						when $C(v) then -> ItemBlock(ix, iy, Sprite({{0x43}, {0x1e0}, {0x1e1}, {0x1e0}}), (x, y)-> if @player.__class == チビマリオ then スーパーキノコ(x, y) else ファイアフラワー(x, y))
+						when $C(u) then -> ItemBlock(ix, iy, Sprite({{0x43, freq: 0.16}, {0x43}, {0x43}, {0x43}, {0x1e0}, {0x1e1}, {0x1e0}}), (x, y)-> _, love.score, _ = addcoins(), love.score+200, CoinTooltip(x, y))
+						when $C(v) then -> ItemBlock(ix, iy, Sprite({{0x43, freq: 0.16}, {0x43}, {0x43}, {0x43}, {0x1e0}, {0x1e1}, {0x1e0}}), (x, y)-> if @player.__class == チビマリオ then スーパーキノコ(x, y) else ファイアフラワー(x, y))
 						-- when $C(w) then -> ItemBlock(ix, iy, {0x43+@sprites_offset}, 'coin')
 						-- when $C(x) then -> ItemBlock(ix, iy, {0x43+@sprites_offset}, 'coin')
 						when $C(y) then -> HiddenBlock(ix, iy, {0x40+@sprites_offset}, (x, y)-> _, love.score, _ = addcoins(), love.score+200, CoinTooltip(x ,y)) -- 隠しコインブロック
@@ -1002,7 +1002,7 @@ class Field extends Scene
 
 	_update土管入り: (action)=>
 		play'assets/supermario/土管.ogg'
-		@player.sprites.z = -1
+		@player.sprites.z = -5
 		y = 0
 		while y < 32
 			_, dt = coroutine.yield()
@@ -1015,7 +1015,7 @@ class Field extends Scene
 		@updateTheOtherObjects(0) -- オブジェクト生成のため
 		play'assets/supermario/土管.ogg'
 		-- love.BGM.source\pause()
-		@player.sprites.z = -1
+		@player.sprites.z = -5
 		y = 0
 		@player.y += 32--16+@player.h
 		while y < 16+@player.h
@@ -1061,7 +1061,7 @@ class Field extends Scene
 		for c in *lume.sort(@charactors, (a, b)-> (a.sprites.z or 0) < (b.sprites.z or 0))
 			c\registerSprite(@bg_spr)
 		@bg_spr\draw(lume.round(@scroll[1]), lume.round(@scroll[2])) -- 整数でないと汚い描画になる
-		gr.print(love.timer.getFPS()..' FPS\n'..#@charactors..' Objects')
+		gr.print "#{love.timer.getFPS()} FPS\n#{#@charactors} Objects\nx#{_Enemy.Speed/0.5} Speed"
 
 
 class Ready extends Scene
@@ -1145,7 +1145,7 @@ require('distribute').modify_index_html(require('lib.os_capture').capture('echo 
 <link rel=stylesheet href='https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic'>
 <div class=row><div class='col m12'>
 
-- ２周目から少しずつ速くなる。
+- 一周毎に敵スピートが上がるsmario1-1
 - タイトルの２番目を選ぶと、それまでの一番早い状態で始められる。
 
 ## Todo List
@@ -1155,7 +1155,7 @@ require('distribute').modify_index_html(require('lib.os_capture').capture('echo 
 - [x] 無限１UP→かんたんなものを付けたが、地上でできてしまうかも
 - [x] bug FPS出ない時、ジャンプが低くなる
 - 仕様 コインがリフトに連れ去られる
-- 仕様 タイトルにデモは付けられなそう
+- 仕様 タイトル画面にデモは付けられなそう
 - 仕様 地下でデスするとscrollの値が小さいのでスタート地点に戻る
 
 </div></div>"
