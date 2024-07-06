@@ -1102,7 +1102,7 @@ class Title extends SelectBox
 	draw: =>
 		gr.clear(@bgcolor)
 		@bg_spr\draw(-16, 8)
-		@@letters\set("   MARIO         WORLD   TIME\n   %06d  %s%s%02d\n\n\n\n\n\n\n\n\n\n\n\n\n\n      %s 1 PLAYER GAME\n\n      %s 1 PLAYER GAME\n\n\n\n       TOP - %08d"\format(love.score,
+		@@letters\set("   MARIO         WORLD   TIME\n   %06d  %s%s%02d\n\n\n\n\n\n\n\n\n\n\n\n\n\n      %s NORMAL SPEED\n\n      %s MAX SPEED\n\n\n\n       TOP - %08d"\format(love.score,
 			string.char(2.5+lume.pingpong(love.timer.getTime())*2), utf8.char(0xb5), love.coins, -- HTML5版で\u{XX}や\xXXが理解されずそのままの文字になるため
 			(if 1 == @index then string.char(1) else ' '), (if 2 == @index then string.char(1) else ' '), love.hiscore)\to2d((c)-> if c==0x20 then 0 else c))
 		@@letters\draw(0, 8)
