@@ -774,8 +774,8 @@ class _Player extends _Charactor
 	walk: (dt)=>
 		if @direction := (if input.Left() and not input.Down() then 1 elseif input.Right() and not input.Down() then 3 else nil) -- 下を押している時(しゃがんでいる時)は左右に移動できない
 			old_vx = @vx
-			@vx += rawget({-0.07, nil, 0.07}, @direction) * (if input.B() then 1.5 else 1.0) *60*dt -- 加速
-			@vx = if input.B() then lume.clamp(@vx, -@@SpeedB, @@SpeedB) elseif old_vx < -@@Speed or @@Speed < old_vx then old_vx * 0.9 * 60*dt else lume.clamp(@vx, -@@Speed, @@Speed) -- 最高速度
+			@vx += rawget({-0.07, nil, 0.07}, @direction) * (if input.B() or input.X() or input.Y() then 1.5 else 1.0) *60*dt -- 加速
+			@vx = if (input.B() or input.X() or input.Y()) then lume.clamp(@vx, -@@SpeedB, @@SpeedB) elseif old_vx < -@@Speed or @@Speed < old_vx then old_vx * 0.9 * 60*dt else lume.clamp(@vx, -@@Speed, @@Speed) -- 最高速度
 		else
 			@vx *= 0.9 -- 減衰して…↓
 			if math.abs(@vx) < 0.1 then @vx = 0 -- 止まる
@@ -897,7 +897,7 @@ class ファイアマリオ extends スーパーマリオ
 	-- new: (x, y)=> super(x, y, 14, 32, @@Sprites)
 	update: (dt)=>
 		super(dt)
-		if input.Bp() and lume.count(Scene.current.charactors, (c)-> c.__class == ファイアボール) < 3 then ファイアボール(@x, @y, @direction) -- ３個までにする
+		if (input.Bp() or input.Xp() or input.Yp()) and lume.count(Scene.current.charactors, (c)-> c.__class == ファイアボール) < 3 then ファイアボール(@x, @y, @direction) -- ３個までにする
 
 	powerUp: (_item)=> love.score, _ = love.score+1000, ScoreTooltip(@x, @y, 1000)
 
